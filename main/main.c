@@ -1,13 +1,11 @@
-/* LVGL Example project
- *
- * Basic project to test LVGL on ESP32 based projects.
- *
- * This example code is in the Public Domain (or CC0 licensed, at your option.)
- *
- * Unless required by applicable law or agreed to in writing, this
- * software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
- * CONDITIONS OF ANY KIND, either express or implied.
- */
+/*
+    You can either follow instruction from the https://github.com/lvgl/lv_port_esp32.git to clone the original repo and proceed with that 
+    OR
+    you can use my fork of the above repo to follow along. THe latest code will be in my repo
+        this is the command you need to use to clone my repo
+            git clone --recurse-submodules https://github.com/Omegaki113r/lv_port_esp32.git
+*/
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,20 +27,6 @@
 
 #include "lvgl_helpers.h"
 
-#ifndef CONFIG_LV_TFT_DISPLAY_MONOCHROME
-    #if defined CONFIG_LV_USE_DEMO_WIDGETS
-        #include "lv_examples/src/lv_demo_widgets/lv_demo_widgets.h"
-    #elif defined CONFIG_LV_USE_DEMO_KEYPAD_AND_ENCODER
-        #include "lv_examples/src/lv_demo_keypad_encoder/lv_demo_keypad_encoder.h"
-    #elif defined CONFIG_LV_USE_DEMO_BENCHMARK
-        #include "lv_examples/src/lv_demo_benchmark/lv_demo_benchmark.h"
-    #elif defined CONFIG_LV_USE_DEMO_STRESS
-        #include "lv_examples/src/lv_demo_stress/lv_demo_stress.h"
-    #else
-        #error "No demo application selected."
-    #endif
-#endif
-
 /*********************
  *      DEFINES
  *********************/
@@ -59,152 +43,132 @@ static void create_demo_application(void);
 /**********************
  *   APPLICATION MAIN
  **********************/
-void app_main() {
-
-    /* If you want to use a task to create the graphic, you NEED to create a Pinned task
-     * Otherwise there can be problem such as memory corruption and so on.
-     * NOTE: When not using Wi-Fi nor Bluetooth you can pin the guiTask to core 0 */
-    xTaskCreatePinnedToCore(guiTask, "gui", 4096*2, NULL, 0, NULL, 1);
+void app_main()
+{
+    xTaskCreatePinnedToCore(guiTask, "gui", 4096 * 2, NULL, 0, NULL, 1);
 }
 
-/* Creates a semaphore to handle concurrent call to lvgl stuff
- * If you wish to call *any* lvgl function from other threads/tasks
- * you should lock on the very same semaphore! */
 SemaphoreHandle_t xGuiSemaphore;
 
-static void guiTask(void *pvParameter) {
+static void guiTask(void *pvParameter)
+{
 
-    (void) pvParameter;
+    (void)pvParameter;
     xGuiSemaphore = xSemaphoreCreateMutex();
 
     lv_init();
 
-    /* Initialize SPI or I2C bus used by the drivers */
     lvgl_driver_init();
 
-    lv_color_t* buf1 = heap_caps_malloc(DISP_BUF_SIZE * sizeof(lv_color_t), MALLOC_CAP_DMA);
+    lv_color_t *buf1 = heap_caps_malloc(DISP_BUF_SIZE * sizeof(lv_color_t), MALLOC_CAP_DMA);
     assert(buf1 != NULL);
 
-    /* Use double buffered when not working with monochrome displays */
-#ifndef CONFIG_LV_TFT_DISPLAY_MONOCHROME
-    lv_color_t* buf2 = heap_caps_malloc(DISP_BUF_SIZE * sizeof(lv_color_t), MALLOC_CAP_DMA);
+    lv_color_t *buf2 = heap_caps_malloc(DISP_BUF_SIZE * sizeof(lv_color_t), MALLOC_CAP_DMA);
     assert(buf2 != NULL);
-#else
-    static lv_color_t *buf2 = NULL;
-#endif
 
     static lv_disp_buf_t disp_buf;
 
     uint32_t size_in_px = DISP_BUF_SIZE;
 
-#if defined CONFIG_LV_TFT_DISPLAY_CONTROLLER_IL3820         \
-    || defined CONFIG_LV_TFT_DISPLAY_CONTROLLER_JD79653A    \
-    || defined CONFIG_LV_TFT_DISPLAY_CONTROLLER_UC8151D     \
-    || defined CONFIG_LV_TFT_DISPLAY_CONTROLLER_SSD1306
-
-    /* Actual size in pixels, not bytes. */
-    size_in_px *= 8;
-#endif
-
-    /* Initialize the working buffer depending on the selected display.
-     * NOTE: buf2 == NULL when using monochrome displays. */
     lv_disp_buf_init(&disp_buf, buf1, buf2, size_in_px);
 
     lv_disp_drv_t disp_drv;
     lv_disp_drv_init(&disp_drv);
     disp_drv.flush_cb = disp_driver_flush;
-
-    /* When using a monochrome display we need to register the callbacks:
-     * - rounder_cb
-     * - set_px_cb */
-#ifdef CONFIG_LV_TFT_DISPLAY_MONOCHROME
-    disp_drv.rounder_cb = disp_driver_rounder;
-    disp_drv.set_px_cb = disp_driver_set_px;
-#endif
-
     disp_drv.buffer = &disp_buf;
     lv_disp_drv_register(&disp_drv);
 
-    /* Register an input device when enabled on the menuconfig */
-#if CONFIG_LV_TOUCH_CONTROLLER != TOUCH_CONTROLLER_NONE
-    lv_indev_drv_t indev_drv;
-    lv_indev_drv_init(&indev_drv);
-    indev_drv.read_cb = touch_driver_read;
-    indev_drv.type = LV_INDEV_TYPE_POINTER;
-    lv_indev_drv_register(&indev_drv);
-#endif
+    /*
+        For now let's comment this.
+        below part is responsible for detecting touch events
+    */
+    // lv_indev_drv_t indev_drv;
+    // lv_indev_drv_init(&indev_drv);
+    // indev_drv.read_cb = touch_driver_read;
+    // indev_drv.type = LV_INDEV_TYPE_POINTER;
+    // lv_indev_drv_register(&indev_drv);
 
-    /* Create and start a periodic timer interrupt to call lv_tick_inc */
     const esp_timer_create_args_t periodic_timer_args = {
         .callback = &lv_tick_task,
-        .name = "periodic_gui"
-    };
+        .name = "periodic_gui"};
     esp_timer_handle_t periodic_timer;
     ESP_ERROR_CHECK(esp_timer_create(&periodic_timer_args, &periodic_timer));
     ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, LV_TICK_PERIOD_MS * 1000));
 
-    /* Create the demo application */
     create_demo_application();
 
-    while (1) {
-        /* Delay 1 tick (assumes FreeRTOS tick is 10ms */
-        vTaskDelay(pdMS_TO_TICKS(10));
-
-        /* Try to take the semaphore, call lvgl related function on success */
-        if (pdTRUE == xSemaphoreTake(xGuiSemaphore, portMAX_DELAY)) {
+    while (1)
+    {
+        vTaskDelay(pdMS_TO_TICKS(10 / portTICK_PERIOD_MS));
+        if (pdTRUE == xSemaphoreTake(xGuiSemaphore, portMAX_DELAY))
+        {
             lv_task_handler();
             xSemaphoreGive(xGuiSemaphore);
-       }
+        }
     }
 
-    /* A task should NEVER return */
     free(buf1);
-#ifndef CONFIG_LV_TFT_DISPLAY_MONOCHROME
     free(buf2);
-#endif
     vTaskDelete(NULL);
+}
+
+lv_obj_t *home_page;
+lv_obj_t *home_page_background;
+
+lv_obj_t *emergency_button;
+lv_obj_t *emergency_button_label;
+
+static void emergency_button_event_handler(lv_obj_t *obj, lv_event_t event)
+{
+    // let's handle the button press in a different day
+    // but in here you need to put the code that needs to be run when the button is pressed
 }
 
 static void create_demo_application(void)
 {
-    /* When using a monochrome display we only show "Hello World" centered on the
-     * screen */
-#if defined CONFIG_LV_TFT_DISPLAY_MONOCHROME || \
-    defined CONFIG_LV_TFT_DISPLAY_CONTROLLER_ST7735S
+    // this is where i write code to display widgets like buttons and  sliders ....
 
-    /* use a pretty small demo for monochrome displays */
-    /* Get the current screen  */
-    lv_obj_t * scr = lv_disp_get_scr_act(NULL);
+    /*
+        this custom style ensure the buttons will not have borders.
+    */
+    static lv_style_t no_border_style;
+    lv_style_init(&no_border_style);
+    lv_style_set_border_width(&no_border_style, LV_STATE_DEFAULT, 0);
 
-    /*Create a Label on the currently active screen*/
-    lv_obj_t * label1 =  lv_label_create(scr, NULL);
+    home_page = lv_obj_create(NULL, NULL);
+    lv_obj_add_style(home_page, LV_OBJ_PART_MAIN, &no_border_style);
+    lv_obj_set_size(home_page, 250, 330); // 250,330 stands for length and width of the home page. this home page is slightly bigger than the screen itself.
 
-    /*Modify the Label's text*/
-    lv_label_set_text(label1, "Hello\nworld");
+    home_page_background = lv_obj_create(home_page, NULL);
+    lv_obj_set_size(home_page_background, 250, 330);
+    lv_obj_align(home_page_background, home_page, LV_ALIGN_IN_TOP_LEFT, -5, -5);                                       // this is to ensure that there is no other background colors peek through
+    lv_obj_set_style_local_bg_color(home_page_background, LV_OBJ_PART_MAIN, LV_STATE_DEFAULT, lv_color_make(0, 0, 0)); // lv_color_make(0, 0, 0) this represent the color black in RGB color space, if you want to make this white it should be changed to lv_color_make(255, 255, 255)
+    lv_obj_add_style(home_page_background, LV_OBJ_PART_MAIN, &no_border_style);
 
-    /* Align the Label to the center
-     * NULL means align on parent (which is the screen now)
-     * 0, 0 at the end means an x, y offset after alignment*/
-    lv_obj_align(label1, NULL, LV_ALIGN_CENTER, 0, 0);
-#else
-    /* Otherwise we show the selected demo */
+    // now let's add a button to middle of the screen.
+    emergency_button = lv_btn_create(home_page, NULL);
+    lv_obj_set_click(emergency_button, true);
+    lv_obj_set_size(emergency_button, 200, 40);
+    lv_obj_align(emergency_button, home_page, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_event_cb(emergency_button, emergency_button_event_handler); // this is where put the function that needs to be executed when the button is pressed
+    lv_obj_set_style_local_bg_color(emergency_button, LV_BTN_PART_MAIN, LV_STATE_DEFAULT, lv_color_make(0, 0, 255));
+    lv_obj_add_style(emergency_button, LV_OBJ_PART_MAIN, &no_border_style);
 
-    #if defined CONFIG_LV_USE_DEMO_WIDGETS
-        lv_demo_widgets();
-    #elif defined CONFIG_LV_USE_DEMO_KEYPAD_AND_ENCODER
-        lv_demo_keypad_encoder();
-    #elif defined CONFIG_LV_USE_DEMO_BENCHMARK
-        lv_demo_benchmark();
-    #elif defined CONFIG_LV_USE_DEMO_STRESS
-        lv_demo_stress();
-    #else
-        #error "No demo application selected."
-    #endif
-#endif
+    emergency_button_label = lv_label_create(emergency_button, NULL);
+    lv_label_set_long_mode(emergency_button_label, LV_LABEL_LONG_EXPAND); // this ensure that text don't cut off even when the text is longer than the button
+    lv_label_set_align(emergency_button_label, LV_LABEL_ALIGN_CENTER);
+    lv_label_set_text(emergency_button_label, "Emergency");
+    lv_obj_set_size(emergency_button_label, 84, 16); // this size ensure that the label size is less than the size of the button
+    lv_obj_set_style_local_text_color(emergency_button_label, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_make(255, 255, 255));
+    lv_obj_add_style(emergency_button_label, LV_OBJ_PART_MAIN, &no_border_style);
+    lv_obj_align(emergency_button_label, emergency_button, LV_ALIGN_CENTER, 0, 0); // this ensure the label is centered on the button. (0,0) stands for offset from center.
+
+
+    lv_scr_load(home_page);
 }
 
-static void lv_tick_task(void *arg) {
-    (void) arg;
-
+static void lv_tick_task(void *arg)
+{
+    (void)arg;
     lv_tick_inc(LV_TICK_PERIOD_MS);
 }
