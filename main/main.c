@@ -118,6 +118,9 @@ lv_obj_t *home_page_background;
 lv_obj_t *emergency_button;
 lv_obj_t *emergency_button_label;
 
+lv_obj_t *thermometer_img;
+LV_IMG_DECLARE(thermometer_lvgl); // this is where we introduce the C file to the codebase
+
 static void emergency_button_event_handler(lv_obj_t *obj, lv_event_t event)
 {
     // let's handle the button press in a different day
@@ -163,6 +166,23 @@ static void create_demo_application(void)
     lv_obj_add_style(emergency_button_label, LV_OBJ_PART_MAIN, &no_border_style);
     lv_obj_align(emergency_button_label, emergency_button, LV_ALIGN_CENTER, 0, 0); // this ensure the label is centered on the button. (0,0) stands for offset from center.
 
+    thermometer_img = lv_img_create(home_page, NULL); // this is where we create the container to hold the image
+    lv_img_set_src(thermometer_img, &thermometer_lvgl); // this is where we give the source of the image to the container
+    // the below 2 lines are to change the color and the opacity of the image
+    // the current background of the screen is set to black.
+    // the image i copied from the internet was also black. therefore the image will not show up in the screen if we try to display it
+    // therefose the following lines of code will change the color of the image to white. so that we can see it on the screen
+    lv_obj_set_style_local_image_recolor(thermometer_img,LV_IMG_PART_MAIN,LV_STATE_DEFAULT,lv_color_make(255,255,255));
+    lv_obj_set_style_local_image_recolor_opa(thermometer_img, LV_IMG_PART_MAIN, LV_STATE_DEFAULT, 255);
+    lv_obj_set_size(thermometer_img, 50, 50);
+    lv_obj_align(thermometer_img, home_page, LV_ALIGN_IN_TOP_LEFT, 10, 10); // this places the image on top left corner with an offset of 10,10
+
+
+    // let's upload and see :-)
+    // like this you will be able to add images to the UI in LVGL
+
+    // please like and subscribe for more LVGL tutorials :-)
+    // thanks 
 
     lv_scr_load(home_page);
 }
